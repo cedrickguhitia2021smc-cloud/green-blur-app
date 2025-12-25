@@ -2,7 +2,7 @@
 <html>
 <body style="margin:0; background:black; overflow:hidden;">
     <video id="v" autoplay playsinline style="position:fixed; width:100vw; height:100vh; object-fit:cover;"></video>
-    <canvas id="c" style="position:fixed; width:100vw; height:100vh; object-fit:cover; pointer-events:none;"></canvas>
+    <canvas id="c" style="position:fixed; width:100vw; height:100vh; object-fit:cover; filter: blur(15px);"></canvas>
 
     <script>
         const v = document.getElementById('v');
@@ -16,30 +16,29 @@
             if (v.videoWidth > 0) {
                 c.width = v.videoWidth / 4;
                 c.height = v.videoHeight / 4;
-                ctx.drawImage(v, 0, 0, c.width, c.height);
+                ctx.clearRect(0, 0, c.width, c.height);
                 
-                let f = ctx.getImageData(0, 0, c.width, c.height);
+                // Draw only a small version to save battery
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = c.width;
+                tempCanvas.height = c.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.drawImage(v, 0, 0, c.width, c.height);
+                
+                let f = tempCtx.getImageData(0, 0, c.width, c.height);
                 let d = f.data;
-                let greenCount = 0;
 
                 for (let i = 0; i < d.length; i += 4) {
                     let r = d[i], g = d[i+1], b = d[i+2];
-                    // Strict Green Logic to avoid blurring white paper or wood
-                    if (g > 80 && g > r * 1.4 && g > b * 1.2) {
-                        greenCount++;
-                        d[i]=0; d[i+1]=255; d[i+2]=0; d[i+3]=150; 
-                    } else {
+                    // If it's NOT green, make it invisible on the top layer
+                    if (!(g > 80 && g > r * 1.4 && g > b * 1.2)) {
                         d[i+3] = 0; 
+                    } else {
+                        // Keep green pixels but make them a solid blurry color
+                        d[i]=50; d[i+1]=150; d[i+2]=50; d[i+3]=255;
                     }
                 }
                 ctx.putImageData(f, 0, 0);
-                
-                // Only blur if enough green is found (more than 100 pixels)
-                if (greenCount > 100) {
-                    v.style.filter = "blur(30px)";
-                } else {
-                    v.style.filter = "blur(0px)";
-                }
             }
             requestAnimationFrame(render);
         }
