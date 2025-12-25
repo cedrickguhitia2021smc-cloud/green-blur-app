@@ -1,78 +1,135 @@
 <!DOCTYPE html>
 <html>
 <body style="margin:0; background:black; overflow:hidden;">
-    <video id="v" autoplay playsinline style="position:fixed; width:100vw; height:100vh; object-fit:cover;"></video>
-    <canvas id="c" style="position:fixed; width:100vw; height:100vh; object-fit:cover; pointer-events:none;"></canvas>
+    <video id="v" autoplay playsinline muted
+        style="position:fixed; width:100vw; height:100vh; object-fit:cover;"></video>
+    <canvas id="c"
+        style="position:fixed; width:100vw; height:100vh; pointer-events:none;"></canvas>
 
-    <script>
-        const v = document.getElementById('v');
-        const c = document.getElementById('c');
-        const ctx = c.getContext('2d');
+<script>
+const v = document.getElementById("v");
+const c = document.getElementById("c");
+const ctx = c.getContext("2d");
 
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-            .then(s => { v.srcObject = s; });
+navigator.mediaDevices.getUserMedia({
+    video: { facingMode: "environment" }
+}).then(s => v.srcObject = s);
 
-        function render() {
-            if (v.videoWidth > 0) {
-                const w = v.videoWidth / 5;
-                const h = v.videoHeight / 5;
-                c.width = w; c.height = h;
+// Fixed processing resolution (important)
+const SCALE = 6;
+let smoothBox = null;
 
-                const temp = document.createElement('canvas');
-                temp.width = w; temp.height = h;
-                const tCtx = temp.getContext('2d');
-                tCtx.drawImage(v, 0, 0, w, h);
+// RGB → HSV conversion
+function rgbToHsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    let max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h, s, v = max;
+    let d = max - min;
+    s = max === 0 ? 0 : d / max;
 
-                let f = tCtx.getImageData(0, 0, w, h);
-                let d = f.data;
-                
-                // 1. Find all orange pixels and turn them WHITE on a BLACK background
-                // This creates a "binary map" for shape detection
-                for (let i = 0; i < d.length; i += 4) {
-                    let r = d[i], g = d[i+1], b = d[i+2];
-                    if (r > 150 && g > 60 && g < 180 && b < 100) {
-                        d[i] = 255; d[i+1] = 255; d[i+2] = 255; d[i+3] = 255;
-                    } else {
-                        d[i] = 0; d[i+1] = 0; d[i+2] = 0; d[i+3] = 255;
-                    }
-                }
-                
-                // 2. Scan for a "Closed Box"
-                // We check the top, bottom, left, and right of the orange group
-                let minX = w, maxX = 0, minY = h, maxY = 0, count = 0;
-                for (let y = 0; y < h; y++) {
-                    for (let x = 0; x < w; x++) {
-                        let i = (y * w + x) * 4;
-                        if (d[i] === 255) {
-                            if (x < minX) minX = x; if (x > maxX) maxX = x;
-                            if (y < minY) minY = y; if (y > maxY) maxY = y;
-                            count++;
-                        }
-                    }
-                }
-
-                const boxW = maxX - minX;
-                const boxH = maxY - minY;
-                const area = boxW * boxH;
-
-                // 3. SHAPE LOGIC:
-                // If it's a box, the pixels we found should be spread out 
-                // across a specific width and height. 
-                // If it's just a scribble, the "density" will be wrong.
-                if (count > 200 && boxW > 30 && boxH > 30 && count < area * 0.8) {
-                    // It looks like a box! Apply the Black Mask
-                    ctx.fillStyle = "black";
-                    ctx.fillRect(minX, minY, boxW, boxH);
-                    c.style.filter = "blur(10px)";
-                    c.style.opacity = "1";
-                } else {
-                    c.style.opacity = "0";
-                    ctx.clearRect(0, 0, w, h);
-                }
-            }
-            requestAnimationFrame(render);
+    if (d === 0) h = 0;
+    else {
+        switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+            case g: h = (b - r) / d + 2; break;
+            case b: h = (r - g) / d + 4; break;
         }
-        v.onplay = () => render();
-    </script>
+        h *= 60;
+    }
+    return [h, s, v];
+}
+
+function render() {
+    if (!v.videoWidth) return requestAnimationFrame(render);
+
+    const w = Math.floor(v.videoWidth / SCALE);
+    const h = Math.floor(v.videoHeight / SCALE);
+
+    if (c.width !== w || c.height !== h) {
+        c.width = w;
+        c.height = h;
+    }
+
+    ctx.drawImage(v, 0, 0, w, h);
+    let img = ctx.getImageData(0, 0, w, h);
+    let d = img.data;
+
+    let minX = w, maxX = 0, minY = h, maxY = 0;
+    let count = 0;
+
+    for (let i = 0; i < d.length; i += 4) {
+        const r = d[i], g = d[i+1], b = d[i+2];
+        const [H, S, V] = rgbToHsv(r, g, b);
+
+        // ORANGE DETECTION (HSV – stable)
+        if (
+            H > 15 && H < 40 &&
+            S > 0.55 &&
+            V > 0.4
+        ) {
+            let x = (i / 4) % w;
+            let y = Math.floor((i / 4) / w);
+
+            minX = Math.min(minX, x);
+            maxX = Math.max(maxX, x);
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y);
+            count++;
+        }
+    }
+
+    ctx.clearRect(0, 0, w, h);
+
+    let bw = maxX - minX;
+    let bh = maxY - minY;
+
+    if (count > 300 && bw > 25 && bh > 25) {
+        let target = {
+            x: minX - 4,
+            y: minY - 4,
+            w: bw + 8,
+            h: bh + 8
+        };
+
+        // Temporal smoothing (critical for stability)
+        if (!smoothBox) smoothBox = target;
+        smoothBox.x += (target.x - smoothBox.x) * 0.25;
+        smoothBox.y += (target.y - smoothBox.y) * 0.25;
+        smoothBox.w += (target.w - smoothBox.w) * 0.25;
+        smoothBox.h += (target.h - smoothBox.h) * 0.25;
+
+        // Darken / blur INSIDE the box
+        ctx.save();
+        ctx.filter = "blur(8px)";
+        ctx.drawImage(
+            v,
+            smoothBox.x * SCALE,
+            smoothBox.y * SCALE,
+            smoothBox.w * SCALE,
+            smoothBox.h * SCALE,
+            smoothBox.x,
+            smoothBox.y,
+            smoothBox.w,
+            smoothBox.h
+        );
+        ctx.restore();
+
+        // Optional dark overlay
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        ctx.fillRect(
+            smoothBox.x,
+            smoothBox.y,
+            smoothBox.w,
+            smoothBox.h
+        );
+    } else {
+        smoothBox = null;
+    }
+
+    requestAnimationFrame(render);
+}
+
+v.onplay = render;
+</script>
 </body>
 </html>
