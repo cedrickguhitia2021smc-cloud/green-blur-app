@@ -1,34 +1,49 @@
-        function render() {
-            c.width = v.videoWidth / 4;
-            c.height = v.videoHeight / 4;
-            ctx.drawImage(v, 0, 0, c.width, c.height);
-            
-            let f = ctx.getImageData(0, 0, c.width, c.height);
-            let d = f.data;
-            let greenCount = 0;
+<!DOCTYPE html>
+<html>
+<body style="margin:0; background:black; overflow:hidden;">
+    <video id="v" autoplay playsinline style="position:fixed; width:100vw; height:100vh; object-fit:cover;"></video>
+    <canvas id="c" style="position:fixed; width:100vw; height:100vh; object-fit:cover; pointer-events:none;"></canvas>
 
-            for (let i = 0; i < d.length; i += 4) {
-                let r = d[i], g = d[i+1], b = d[i+2];
+    <script>
+        const v = document.getElementById('v');
+        const c = document.getElementById('c');
+        const ctx = c.getContext('2d');
+
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(s => { v.srcObject = s; });
+
+        function render() {
+            if (v.videoWidth > 0) {
+                c.width = v.videoWidth / 4;
+                c.height = v.videoHeight / 4;
+                ctx.drawImage(v, 0, 0, c.width, c.height);
                 
-                // ACCURATE GREEN DETECTION:
-                // 1. Green must be bright (g > 70)
-                // 2. Green must be significantly stronger than Red AND Blue
-                if (g > 70 && g > r * 1.3 && g > b * 1.1) {
-                    greenCount++;
-                    d[i] = 0; d[i+1] = 255; d[i+2] = 0; d[i+3] = 255; // Highlight Green
-                } else {
-                    d[i+3] = 0; // Ignore everything else (Black, White, Wood)
+                let f = ctx.getImageData(0, 0, c.width, c.height);
+                let d = f.data;
+                let greenCount = 0;
+
+                for (let i = 0; i < d.length; i += 4) {
+                    let r = d[i], g = d[i+1], b = d[i+2];
+                    // Strict Green Logic to avoid blurring white paper or wood
+                    if (g > 80 && g > r * 1.4 && g > b * 1.2) {
+                        greenCount++;
+                        d[i]=0; d[i+1]=255; d[i+2]=0; d[i+3]=150; 
+                    } else {
+                        d[i+3] = 0; 
+                    }
                 }
-            }
-            ctx.putImageData(f, 0, 0);
-            
-            // Only blur the screen if a significant amount of green is found
-            if (greenCount > 50) { 
-                v.style.filter = "blur(25px)"; 
-                c.style.display = "block"; // Shows you the green mask
-            } else {
-                v.style.filter = "blur(0px)";
-                c.style.display = "none";
+                ctx.putImageData(f, 0, 0);
+                
+                // Only blur if enough green is found (more than 100 pixels)
+                if (greenCount > 100) {
+                    v.style.filter = "blur(30px)";
+                } else {
+                    v.style.filter = "blur(0px)";
+                }
             }
             requestAnimationFrame(render);
         }
+        v.onplay = () => render();
+    </script>
+</body>
+</html>
