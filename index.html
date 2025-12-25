@@ -1,32 +1,24 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <title>Green Blur Mask App</title>
-</head>
 <body style="margin:0; background:black; overflow:hidden;">
     <video id="v" autoplay playsinline style="position:fixed; width:100vw; height:100vh; object-fit:cover;"></video>
-    
-    <canvas id="c" style="position:fixed; width:100vw; height:100vh; object-fit:cover; filter: blur(25px); pointer-events:none;"></canvas>
+    <canvas id="c" style="position:fixed; width:100vw; height:100vh; object-fit:cover; pointer-events:none;"></canvas>
 
     <script>
         const v = document.getElementById('v');
         const c = document.getElementById('c');
         const ctx = c.getContext('2d');
 
-        // Access the back camera
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then(s => { v.srcObject = s; });
 
         function render() {
             if (v.videoWidth > 0) {
-                // We use a lower resolution for the mask to make it run fast on your phone
-                c.width = v.videoWidth / 4;
-                c.height = v.videoHeight / 4;
-                
-                // Clear the mask every frame
+                // Resolution for the mask
+                c.width = v.videoWidth / 2; 
+                c.height = v.videoHeight / 2;
                 ctx.clearRect(0, 0, c.width, c.height);
                 
-                // Create a temporary hidden workspace to analyze colors
                 const tempCanvas = document.createElement('canvas');
                 tempCanvas.width = c.width;
                 tempCanvas.height = c.height;
@@ -39,26 +31,25 @@
                 for (let i = 0; i < d.length; i += 4) {
                     let r = d[i], g = d[i+1], b = d[i+2];
                     
-                    // SENSITIVE GREEN MASK LOGIC
-                    // 1. g > 60: Catches green text even in medium light
-                    // 2. g > r * 1.1: Allows "Lime" or "Yellow-Green" like Study Zone
-                    // 3. g > b: Ensures it doesn't blur white or blue
-                    if (g > 60 && g > r * 1.1 && g > b) {
-                        d[i] = 50;     // Darker Red
-                        d[i+1] = 180;  // Strong Green
-                        d[i+2] = 50;   // Darker Blue
-                        d[i+3] = 255;  // 255 = Solid Opaque Mask (Hides text 100%)
+                    // ULTRA-SENSITIVE MASK (Targets the "Study Zone" Lime Green)
+                    if (g > 55 && g > r * 1.05 && g > b) {
+                        // Make the mask SOLID BLACK to completely hide text
+                        d[i] = 0;     
+                        d[i+1] = 0;   
+                        d[i+2] = 0;   
+                        d[i+3] = 255; // 255 = 100% Solid (Not transparent)
                     } else {
-                        d[i+3] = 0;    // 0 = Invisible (Shows the clear video underneath)
+                        d[i+3] = 0; 
                     }
                 }
-                // Put the finished mask onto the top layer
                 ctx.putImageData(f, 0, 0);
+                
+                // We apply a heavy blur to the MASK ONLY to make the blackout areas bigger
+                ctx.globalCompositeOperation = 'source-over';
+                c.style.filter = "blur(15px) contrast(200%)"; 
             }
             requestAnimationFrame(render);
         }
-        
-        // Start the process as soon as the video starts playing
         v.onplay = () => render();
     </script>
 </body>
