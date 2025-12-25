@@ -14,11 +14,10 @@
 
         function render() {
             if (v.videoWidth > 0) {
-                const w = v.videoWidth / 4;
-                const h = v.videoHeight / 4;
+                const w = v.videoWidth / 5;
+                const h = v.videoHeight / 5;
                 c.width = w; c.height = h;
 
-                // 1. Draw the current frame to a hidden workspace
                 const temp = document.createElement('canvas');
                 temp.width = w; temp.height = h;
                 const tCtx = temp.getContext('2d');
@@ -26,34 +25,48 @@
 
                 let f = tCtx.getImageData(0, 0, w, h);
                 let d = f.data;
-                let orangeFound = 0;
-
-                // 2. Identify Orange pixels for the Mask
+                
+                // 1. Find all orange pixels and turn them WHITE on a BLACK background
+                // This creates a "binary map" for shape detection
                 for (let i = 0; i < d.length; i += 4) {
                     let r = d[i], g = d[i+1], b = d[i+2];
-                    // Strict Orange: Red is dominant, Green is medium, Blue is very low
-                    if (r > 120 && g > 50 && r > g * 1.5 && b < 100) {
-                        orangeFound++;
-                        d[i+3] = 255; // Keep pixel for mask
+                    if (r > 150 && g > 60 && g < 180 && b < 100) {
+                        d[i] = 255; d[i+1] = 255; d[i+2] = 255; d[i+3] = 255;
                     } else {
-                        d[i+3] = 0;   // Erase pixel from mask
+                        d[i] = 0; d[i+1] = 0; d[i+2] = 0; d[i+3] = 255;
+                    }
+                }
+                
+                // 2. Scan for a "Closed Box"
+                // We check the top, bottom, left, and right of the orange group
+                let minX = w, maxX = 0, minY = h, maxY = 0, count = 0;
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        let i = (y * w + x) * 4;
+                        if (d[i] === 255) {
+                            if (x < minX) minX = x; if (x > maxX) maxX = x;
+                            if (y < minY) minY = y; if (y > maxY) maxY = y;
+                            count++;
+                        }
                     }
                 }
 
-                // 3. Logic: Only apply mask if box is complete (enough orange pixels)
-                if (orangeFound > 200) {
-                    // Put the mask data onto the main canvas
-                    ctx.putImageData(f, 0, 0);
-                    
-                    // The "Magic" Masking Step:
-                    // We tell the canvas to only show color where our mask is solid
-                    ctx.globalCompositeOperation = 'source-in';
-                    ctx.drawImage(v, 0, 0, w, h);
-                    
-                    // Apply blur to the stencil only
-                    c.style.filter = "blur(20px) saturate(200%)";
-                    c.style.transform = "scale(1.1)"; // Expand mask slightly to cover edges
+                const boxW = maxX - minX;
+                const boxH = maxY - minY;
+                const area = boxW * boxH;
+
+                // 3. SHAPE LOGIC:
+                // If it's a box, the pixels we found should be spread out 
+                // across a specific width and height. 
+                // If it's just a scribble, the "density" will be wrong.
+                if (count > 200 && boxW > 30 && boxH > 30 && count < area * 0.8) {
+                    // It looks like a box! Apply the Black Mask
+                    ctx.fillStyle = "black";
+                    ctx.fillRect(minX, minY, boxW, boxH);
+                    c.style.filter = "blur(10px)";
+                    c.style.opacity = "1";
                 } else {
+                    c.style.opacity = "0";
                     ctx.clearRect(0, 0, w, h);
                 }
             }
