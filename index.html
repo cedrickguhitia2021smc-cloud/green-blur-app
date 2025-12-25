@@ -14,9 +14,9 @@
 
         function render() {
             if (v.videoWidth > 0) {
-                // Low resolution (1/8th) creates the "Solid Block" effect to hide text
-                c.width = v.videoWidth / 8; 
-                c.height = v.videoHeight / 8;
+                // We stay at a medium resolution for better accuracy
+                c.width = v.videoWidth / 4; 
+                c.height = v.videoHeight / 4;
                 ctx.clearRect(0, 0, c.width, c.height);
                 
                 const tempCanvas = document.createElement('canvas');
@@ -31,21 +31,19 @@
                 for (let i = 0; i < d.length; i += 4) {
                     let r = d[i], g = d[i+1], b = d[i+2];
                     
-                    // ACCURATE GREEN DETECTION
-                    // We check if green is significantly higher than red and blue
-                    if (g > 50 && g > r * 1.1 && g > b * 1.05) {
-                        d[i] = 0;     // Solid Black Red channel
-                        d[i+1] = 0;   // Solid Black Green channel
-                        d[i+2] = 0;   // Solid Black Blue channel
-                        d[i+3] = 255; // 100% Opaque (No transparency)
+                    // NEW PRECISION LOGIC
+                    // 1. g > 80: Must be bright (This stops it from blurring dark shadows)
+                    // 2. g > r * 1.2: Must be MUCH greener than red (This stops it from blurring brown wood)
+                    // 3. g > b * 1.1: Must be greener than blue
+                    if (g > 80 && g > r * 1.2 && g > b * 1.1) {
+                        d[i] = 0; d[i+1] = 0; d[i+2] = 0; d[i+3] = 255; 
                     } else {
-                        d[i+3] = 0;   // Fully transparent for everything else
+                        d[i+3] = 0; 
                     }
                 }
                 ctx.putImageData(f, 0, 0);
-                
-                // This stretches the tiny black pixels into big solid blocks
-                c.style.imageRendering = "pixelated"; 
+                // Heavy blur on the black blocks to ensure text is covered
+                c.style.filter = "blur(10px)"; 
             }
             requestAnimationFrame(render);
         }
