@@ -1,38 +1,21 @@
 <!DOCTYPE html>
 <html>
-<body style="margin:0; background:black; overflow:hidden; font-family:sans-serif;">
-    <div id="debug" style="position:absolute; top:10px; left:10px; color:white; background:rgba(0,0,0,0.5); z-index:10; padding:5px;">Detection: 0</div>
-    
+<body style="margin:0; background:black; overflow:hidden;">
     <video id="v" autoplay playsinline style="position:fixed; width:100vw; height:100vh; object-fit:cover;"></video>
     <canvas id="c" style="position:fixed; width:100vw; height:100vh; object-fit:cover; pointer-events:none;"></canvas>
 
     <script>
         const v = document.getElementById('v');
         const c = document.getElementById('c');
-        const debug = document.getElementById('debug');
         const ctx = c.getContext('2d');
 
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then(s => { v.srcObject = s; });
 
-        // Converts RGB to the Color Wheel (Hue)
-        function getHue(r, g, b) {
-            r /= 255; g /= 255; b /= 255;
-            const max = Math.max(r, g, b), min = Math.min(r, g, b);
-            let h;
-            if (max === min) h = 0;
-            else if (max === r) h = (g - b) / (max - min);
-            else if (max === g) h = 2 + (b - r) / (max - min);
-            else h = 4 + (r - g) / (max - min);
-            h *= 60;
-            if (h < 0) h += 360;
-            return h;
-        }
-
         function render() {
             if (v.videoWidth > 0) {
-                c.width = v.videoWidth / 8; 
-                c.height = v.videoHeight / 8;
+                c.width = v.videoWidth / 6; 
+                c.height = v.videoHeight / 6;
                 ctx.clearRect(0, 0, c.width, c.height);
                 
                 const tempCanvas = document.createElement('canvas');
@@ -43,28 +26,30 @@
                 
                 let f = tempCtx.getImageData(0, 0, c.width, c.height);
                 let d = f.data;
-                let orangeCount = 0;
+                let orangePixels = 0;
 
                 for (let i = 0; i < d.length; i += 4) {
                     let r = d[i], g = d[i+1], b = d[i+2];
-                    let hue = getHue(r, g, b);
                     
-                    // Orange is between 10 and 50 on the color wheel
-                    // We also check that it's not too dark (r+g+b > 100)
-                    if (hue > 10 && hue < 50 && (r + g + b) > 100) {
-                        orangeCount++;
+                    // VIVID ORANGE DETECTION
+                    // 1. Red is high
+                    // 2. Red is at least double the Blue (This stops it from hitting white/grey)
+                    // 3. Green is between Red and Blue (This is the "Orange Zone")
+                    if (r > 140 && r > b * 2 && g > r * 0.3 && g < r * 0.8) {
+                        orangePixels++;
                         d[i] = 255; d[i+1] = 100; d[i+2] = 0; d[i+3] = 255;
                     } else {
                         d[i+3] = 0; 
                     }
                 }
-                
-                debug.innerText = "Orange Count: " + orangeCount;
 
-                // If a full box is there, this number should jump high
-                if (orangeCount > 100) {
+                // THE "COMPLETE BOX" CHECK
+                // We only apply the blur if a significant amount of orange is detected.
+                if (orangePixels > 350) {
                     ctx.putImageData(f, 0, 0);
-                    c.style.filter = "blur(40px)";
+                    // This creates the "Inside Blur" effect
+                    c.style.filter = "blur(40px) saturate(200%)";
+                    c.style.transform = "scale(1.2)"; 
                 } else {
                     ctx.clearRect(0, 0, c.width, c.height);
                 }
