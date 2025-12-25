@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html>
-<body style="margin:0; background:black; overflow:hidden;">
+<body style="margin:0; background:black; overflow:hidden; font-family:sans-serif;">
+    <div id="debug" style="position:absolute; top:10px; left:10px; color:white; background:rgba(0,0,0,0.5); z-index:10; padding:5px;">Orange Pixels: 0</div>
+    
     <video id="v" autoplay playsinline style="position:fixed; width:100vw; height:100vh; object-fit:cover;"></video>
     <canvas id="c" style="position:fixed; width:100vw; height:100vh; object-fit:cover; pointer-events:none;"></canvas>
 
     <script>
         const v = document.getElementById('v');
         const c = document.getElementById('c');
+        const debug = document.getElementById('debug');
         const ctx = c.getContext('2d');
 
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
@@ -14,9 +17,8 @@
 
         function render() {
             if (v.videoWidth > 0) {
-                // Lower resolution (1/10th) makes "connecting the dots" easier for the code
-                c.width = v.videoWidth / 10; 
-                c.height = v.videoHeight / 10;
+                c.width = v.videoWidth / 8; 
+                c.height = v.videoHeight / 8;
                 ctx.clearRect(0, 0, c.width, c.height);
                 
                 const tempCanvas = document.createElement('canvas');
@@ -27,29 +29,30 @@
                 
                 let f = tempCtx.getImageData(0, 0, c.width, c.height);
                 let d = f.data;
-                
-                let totalOrange = 0;
-                // Create a simplified map of orange pixels
+                let orangeCount = 0;
+
                 for (let i = 0; i < d.length; i += 4) {
                     let r = d[i], g = d[i+1], b = d[i+2];
                     
-                    // Precise Orange Detection
-                    if (r > 160 && g > 70 && g < 160 && b < 100) {
+                    // WIDER ORANGE DETECTION:
+                    // Red must be the strongest, Blue must be very low
+                    if (r > 130 && r > g && g > 40 && b < 100) {
+                        orangeCount++;
                         d[i] = 255; d[i+1] = 100; d[i+2] = 0; d[i+3] = 255;
-                        totalOrange++;
                     } else {
-                        d[i+3] = 0; // Everything else invisible
+                        d[i+3] = 0; 
                     }
                 }
+                
+                // Update the counter on your screen
+                debug.innerText = "Orange Pixels: " + orangeCount;
 
-                // BOX LOGIC: 
-                // A "complete" box at this resolution usually has > 400 connected pixels.
-                // If the box is broken, the pixel count drops significantly.
-                if (totalOrange > 400) {
+                // TRIGGER: If the box is complete, the count should be high.
+                // If it's NOT working, look at the number on screen and change '150' below.
+                if (orangeCount > 150) {
                     ctx.putImageData(f, 0, 0);
-                    // Use a massive blur to cover the "inside" of the box area
-                    c.style.filter = "blur(18px) saturate(200%) brightness(80%)";
-                    c.style.transform = "scale(10.5)"; // Stretch the blur to fill gaps
+                    c.style.filter = "blur(30px)";
+                    c.style.transform = "scale(1.5)"; 
                 } else {
                     ctx.clearRect(0, 0, c.width, c.height);
                 }
