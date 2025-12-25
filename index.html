@@ -12,9 +12,26 @@
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then(s => { v.srcObject = s; });
 
+        function rgbToHsl(r, g, b) {
+            r /= 255, g /= 255, b /= 255;
+            let max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, l = (max + min) / 2;
+            if (max == min) { h = s = 0; } 
+            else {
+                let d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h /= 6;
+            }
+            return [h * 360, s * 100, l * 100];
+        }
+
         function render() {
             if (v.videoWidth > 0) {
-                // We stay at a medium resolution for better accuracy
                 c.width = v.videoWidth / 4; 
                 c.height = v.videoHeight / 4;
                 ctx.clearRect(0, 0, c.width, c.height);
@@ -29,21 +46,19 @@
                 let d = f.data;
 
                 for (let i = 0; i < d.length; i += 4) {
-                    let r = d[i], g = d[i+1], b = d[i+2];
+                    let [h, s, l] = rgbToHsl(d[i], d[i+1], d[i+2]);
                     
-                    // NEW PRECISION LOGIC
-                    // 1. g > 80: Must be bright (This stops it from blurring dark shadows)
-                    // 2. g > r * 1.2: Must be MUCH greener than red (This stops it from blurring brown wood)
-                    // 3. g > b * 1.1: Must be greener than blue
-                    if (g > 80 && g > r * 1.2 && g > b * 1.1) {
+                    // GREEN HUE RANGE: 70 to 170 covers Lime and Green
+                    // S > 25: Ensures the color is vivid (not grey/white paper)
+                    // L < 85: Ensures it's not pure bright white light
+                    if (h > 70 && h < 170 && s > 25 && l < 85) {
                         d[i] = 0; d[i+1] = 0; d[i+2] = 0; d[i+3] = 255; 
                     } else {
                         d[i+3] = 0; 
                     }
                 }
                 ctx.putImageData(f, 0, 0);
-                // Heavy blur on the black blocks to ensure text is covered
-                c.style.filter = "blur(10px)"; 
+                c.style.filter = "blur(12px) contrast(150%)"; 
             }
             requestAnimationFrame(render);
         }
