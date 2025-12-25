@@ -2,7 +2,7 @@
 <html>
 <body style="margin:0; background:black; overflow:hidden;">
     <video id="v" autoplay playsinline style="position:fixed; width:100vw; height:100vh; object-fit:cover;"></video>
-    <canvas id="c" style="position:fixed; width:100vw; height:100vh; object-fit:cover; filter: blur(35px); pointer-events:none;"></canvas>
+    <canvas id="c" style="position:fixed; width:100vw; height:100vh; object-fit:cover; pointer-events:none;"></canvas>
 
     <script>
         const v = document.getElementById('v');
@@ -14,8 +14,9 @@
 
         function render() {
             if (v.videoWidth > 0) {
-                c.width = v.videoWidth / 4; 
-                c.height = v.videoHeight / 4;
+                // Lower resolution (1/10th) makes "connecting the dots" easier for the code
+                c.width = v.videoWidth / 10; 
+                c.height = v.videoHeight / 10;
                 ctx.clearRect(0, 0, c.width, c.height);
                 
                 const tempCanvas = document.createElement('canvas');
@@ -26,24 +27,32 @@
                 
                 let f = tempCtx.getImageData(0, 0, c.width, c.height);
                 let d = f.data;
-
+                
+                let totalOrange = 0;
+                // Create a simplified map of orange pixels
                 for (let i = 0; i < d.length; i += 4) {
                     let r = d[i], g = d[i+1], b = d[i+2];
                     
-                    // SIMPLE & STABLE GREEN RULE
-                    // 1. Green must be brighter than 90 (Ignore dark shadows)
-                    // 2. Green must be significantly stronger than Red (Ignore wood/skin)
-                    // 3. Green must be stronger than Blue (Ignore white paper)
-                    if (g > 90 && g > r * 1.3 && g > b) {
-                        d[i] = 40;     // Dark Green mask color
-                        d[i+1] = 150;  // Medium Green mask color
-                        d[i+2] = 40;   // Dark Green mask color
-                        d[i+3] = 255;  // Solid mask
+                    // Precise Orange Detection
+                    if (r > 160 && g > 70 && g < 160 && b < 100) {
+                        d[i] = 255; d[i+1] = 100; d[i+2] = 0; d[i+3] = 255;
+                        totalOrange++;
                     } else {
-                        d[i+3] = 0;    // Completely clear
+                        d[i+3] = 0; // Everything else invisible
                     }
                 }
-                ctx.putImageData(f, 0, 0);
+
+                // BOX LOGIC: 
+                // A "complete" box at this resolution usually has > 400 connected pixels.
+                // If the box is broken, the pixel count drops significantly.
+                if (totalOrange > 400) {
+                    ctx.putImageData(f, 0, 0);
+                    // Use a massive blur to cover the "inside" of the box area
+                    c.style.filter = "blur(18px) saturate(200%) brightness(80%)";
+                    c.style.transform = "scale(10.5)"; // Stretch the blur to fill gaps
+                } else {
+                    ctx.clearRect(0, 0, c.width, c.height);
+                }
             }
             requestAnimationFrame(render);
         }
