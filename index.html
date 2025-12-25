@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<body style="margin:0; background:black; color:white; font-family:sans-serif; text-align:center;">
+    <h3>Green Wall Blur Camera</h3>
+    <video id="v" autoplay playsinline style="width:100%; max-height:70vh;"></video>
+    <canvas id="c" style="display:none;"></canvas>
+    <p>Point at Green Wall (Wall B) to see the blur effect.</p>
+
+    <script>
+        const v = document.getElementById('v');
+        const c = document.getElementById('c');
+        const ctx = c.getContext('2d');
+
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(s => { v.srcObject = s; });
+
+        v.onplay = () => {
+            c.width = v.videoWidth;
+            c.height = v.videoHeight;
+            render();
+        };
+
+        function render() {
+            ctx.drawImage(v, 0, 0);
+            let f = ctx.getImageData(0, 0, c.width, c.height);
+            let d = f.data;
+            for (let i = 0; i < d.length; i += 4) {
+                // Logic: If Green is dominant (Wall B), make it transparent/blurred
+                if (d[i+1] > 100 && d[i+1] > d[i] * 1.2) {
+                    d[i+3] = 100; 
+                }
+            }
+            ctx.putImageData(f, 0, 0);
+            requestAnimationFrame(render);
+        }
+    </script>
+</body>
+</html>
