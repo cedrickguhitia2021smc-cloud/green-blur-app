@@ -34,25 +34,25 @@
                 for (let i = 0; i < d.length; i += 4) {
                     let r = d[i], g = d[i+1], b = d[i+2];
                     
-                    // WIDER ORANGE DETECTION:
-                    // Red must be the strongest, Blue must be very low
-                    if (r > 130 && r > g && g > 40 && b < 100) {
+                    // NEW "EASY" ORANGE DETECTION:
+                    // Just checks if Red is much higher than Blue, and Green is in the middle.
+                    if (r > 100 && r > b * 1.5 && g > 30 && g < r) {
                         orangeCount++;
+                        // Make the mask orange
                         d[i] = 255; d[i+1] = 100; d[i+2] = 0; d[i+3] = 255;
                     } else {
                         d[i+3] = 0; 
                     }
                 }
                 
-                // Update the counter on your screen
                 debug.innerText = "Orange Pixels: " + orangeCount;
 
-                // TRIGGER: If the box is complete, the count should be high.
-                // If it's NOT working, look at the number on screen and change '150' below.
-                if (orangeCount > 150) {
+                // If orangeCount is still 0, try moving closer to the light.
+                // We lowered the trigger to 100 for better sensitivity.
+                if (orangeCount > 100) {
                     ctx.putImageData(f, 0, 0);
-                    c.style.filter = "blur(30px)";
-                    c.style.transform = "scale(1.5)"; 
+                    c.style.filter = "blur(35px)";
+                    c.style.opacity = "1";
                 } else {
                     ctx.clearRect(0, 0, c.width, c.height);
                 }
