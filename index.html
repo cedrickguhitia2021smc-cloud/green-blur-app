@@ -14,9 +14,9 @@
 
         function render() {
             if (v.videoWidth > 0) {
-                // Resolution for the mask
-                c.width = v.videoWidth / 2; 
-                c.height = v.videoHeight / 2;
+                // Low resolution (1/8th) creates the "Solid Block" effect to hide text
+                c.width = v.videoWidth / 8; 
+                c.height = v.videoHeight / 8;
                 ctx.clearRect(0, 0, c.width, c.height);
                 
                 const tempCanvas = document.createElement('canvas');
@@ -31,22 +31,21 @@
                 for (let i = 0; i < d.length; i += 4) {
                     let r = d[i], g = d[i+1], b = d[i+2];
                     
-                    // ULTRA-SENSITIVE MASK (Targets the "Study Zone" Lime Green)
-                    if (g > 55 && g > r * 1.05 && g > b) {
-                        // Make the mask SOLID BLACK to completely hide text
-                        d[i] = 0;     
-                        d[i+1] = 0;   
-                        d[i+2] = 0;   
-                        d[i+3] = 255; // 255 = 100% Solid (Not transparent)
+                    // ACCURATE GREEN DETECTION
+                    // We check if green is significantly higher than red and blue
+                    if (g > 50 && g > r * 1.1 && g > b * 1.05) {
+                        d[i] = 0;     // Solid Black Red channel
+                        d[i+1] = 0;   // Solid Black Green channel
+                        d[i+2] = 0;   // Solid Black Blue channel
+                        d[i+3] = 255; // 100% Opaque (No transparency)
                     } else {
-                        d[i+3] = 0; 
+                        d[i+3] = 0;   // Fully transparent for everything else
                     }
                 }
                 ctx.putImageData(f, 0, 0);
                 
-                // We apply a heavy blur to the MASK ONLY to make the blackout areas bigger
-                ctx.globalCompositeOperation = 'source-over';
-                c.style.filter = "blur(15px) contrast(200%)"; 
+                // This stretches the tiny black pixels into big solid blocks
+                c.style.imageRendering = "pixelated"; 
             }
             requestAnimationFrame(render);
         }
