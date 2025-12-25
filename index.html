@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <html>
-<body style="margin:0; background:black; color:white; font-family:sans-serif; text-align:center;">
-    <h3 style="position:absolute; width:100%; top:10px;">Green Blur Mode: ON</h3>
-    <video id="v" autoplay playsinline style="width:100%; height:100vh; object-fit:cover;"></video>
-    <canvas id="c" style="display:none;"></canvas>
+<body style="margin:0; background:black; overflow:hidden;">
+    <video id="v" autoplay playsinline style="position:fixed; width:100vw; height:100vh; object-fit:cover;"></video>
+    <canvas id="c" style="position:fixed; width:100vw; height:100vh; object-fit:cover;"></canvas>
 
     <script>
         const v = document.getElementById('v');
@@ -13,39 +12,40 @@
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then(s => { v.srcObject = s; });
 
-        v.onplay = () => {
-            c.width = 320; // Lower resolution makes it faster
-            c.height = 240;
-            render();
-        };
-
         function render() {
+            c.width = v.videoWidth / 4; // Lower resolution for speed
+            c.height = v.videoHeight / 4;
             ctx.drawImage(v, 0, 0, c.width, c.height);
+            
             let f = ctx.getImageData(0, 0, c.width, c.height);
             let d = f.data;
-            
+            let hasGreen = false;
+
             for (let i = 0; i < d.length; i += 4) {
                 let r = d[i], g = d[i+1], b = d[i+2];
-                // NEW SENSITIVITY: If green is the strongest color, blur it!
-                if (g > 60 && g > r && g > b) {
-                    d[i] = 0;     // Remove Red
-                    d[i+1] = 0;   // Remove Green
-                    d[i+2] = 0;   // Remove Blue
-                    d[i+3] = 150; // This creates a "blackout" blur effect on green
+                // EXTREMELY SENSITIVE GREEN DETECTION
+                if (g > 50 && g > r && g > b * 0.8) {
+                    hasGreen = true;
+                    // Turn green pixels into a blurry grey mask
+                    d[i] = 100; d[i+1] = 100; d[i+2] = 100; d[i+3] = 255;
+                } else {
+                    d[i+3] = 0; // Make everything else invisible
                 }
             }
+            
             ctx.putImageData(f, 0, 0);
             
-            // Draw the processed image back over the video
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = c.width;
-            tempCanvas.height = c.height;
-            tempCanvas.getContext('2d').putImageData(f, 0, 0);
-            
-            // Use CSS to stretch the processed "mask" over the screen
-            v.style.filter = "blur(0px)"; 
+            // If green is found, apply a heavy blur to the video
+            if (hasGreen) {
+                v.style.filter = "blur(20px)";
+                c.style.display = "block";
+            } else {
+                v.style.filter = "blur(0px)";
+                c.style.display = "none";
+            }
             requestAnimationFrame(render);
         }
+        v.onplay = () => render();
     </script>
 </body>
 </html>
