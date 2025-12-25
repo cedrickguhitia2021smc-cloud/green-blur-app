@@ -2,6 +2,7 @@
 <html>
 <body style="margin:0; background:black; overflow:hidden;">
     <video id="v" autoplay playsinline style="position:fixed; width:100vw; height:100vh; object-fit:cover;"></video>
+    
     <canvas id="c" style="position:fixed; width:100vw; height:100vh; object-fit:cover; pointer-events:none;"></canvas>
 
     <script>
@@ -14,8 +15,9 @@
 
         function render() {
             if (v.videoWidth > 0) {
-                c.width = v.videoWidth / 6; 
-                c.height = v.videoHeight / 6;
+                // Lower resolution for the mask to make the blur "thicker"
+                c.width = v.videoWidth / 5; 
+                c.height = v.videoHeight / 5;
                 ctx.clearRect(0, 0, c.width, c.height);
                 
                 const tempCanvas = document.createElement('canvas');
@@ -26,30 +28,32 @@
                 
                 let f = tempCtx.getImageData(0, 0, c.width, c.height);
                 let d = f.data;
-                let orangePixels = 0;
+                let orangeFound = 0;
 
                 for (let i = 0; i < d.length; i += 4) {
                     let r = d[i], g = d[i+1], b = d[i+2];
                     
-                    // VIVID ORANGE DETECTION
-                    // 1. Red is high
-                    // 2. Red is at least double the Blue (This stops it from hitting white/grey)
-                    // 3. Green is between Red and Blue (This is the "Orange Zone")
-                    if (r > 140 && r > b * 2 && g > r * 0.3 && g < r * 0.8) {
-                        orangePixels++;
-                        d[i] = 255; d[i+1] = 100; d[i+2] = 0; d[i+3] = 255;
+                    // MASK LOGIC: Is this pixel "Orange"?
+                    // Orange has high Red, medium Green, and very low Blue.
+                    if (r > 130 && g > 60 && g < r && b < (r + g) / 4) {
+                        orangeFound++;
+                        // If orange, make this part of the mask a solid blurry color
+                        d[i] = r; d[i+1] = g; d[i+2] = b; 
+                        d[i+3] = 255; // Solid
                     } else {
+                        // If NOT orange, make this part of the mask 100% GHOST (Transparent)
                         d[i+3] = 0; 
                     }
                 }
 
-                // THE "COMPLETE BOX" CHECK
-                // We only apply the blur if a significant amount of orange is detected.
-                if (orangePixels > 350) {
+                // COMPLETE BOX CHECK: 
+                // Only "wear" the mask if enough orange is visible to form a box.
+                if (orangeFound > 250) {
                     ctx.putImageData(f, 0, 0);
-                    // This creates the "Inside Blur" effect
-                    c.style.filter = "blur(40px) saturate(200%)";
-                    c.style.transform = "scale(1.2)"; 
+                    // This blurs the MASK only, not the camera.
+                    ctx.filter = "blur(12px)";
+                    ctx.drawImage(c, 0, 0); 
+                    c.style.filter = "blur(25px)";
                 } else {
                     ctx.clearRect(0, 0, c.width, c.height);
                 }
